@@ -159,7 +159,7 @@ losses_today <- filter(daily_update, summoner_name == 'Phoenix MT')$losses
 # if losses from daily_update greater than counter from postgres
 # run tilt_glen python script to message discord 
 if (losses_today > counter$losses){
-    system("C:/Users/joemc/Desktop/league_data/tilt_glen.bat")
+    system("C:/Users/joemc/Desktop/Local Repos/tilt_bot/tilt_glen.bat")
 }
 
 # update loss counter on postgres
