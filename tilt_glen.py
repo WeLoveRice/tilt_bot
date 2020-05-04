@@ -1,14 +1,14 @@
-# bot.py
+# tilt_glen.py
 import os
 import discord
 import sys
+import psycopg2
 from dotenv import load_dotenv
 
 load_dotenv()
 
 # discord token
 TOKEN = os.getenv('DISCORD_TOKEN')
-GUILD = os.getenv('DISCORD_GUILD')
 
 # postgres credentials
 pg_user = os.getenv('pg_user')
@@ -69,7 +69,7 @@ def get_loss_counter():
 
     # return number of losses
     return(summoner_data[2])
-    
+
 # run client with token
 client.run(TOKEN)
 
