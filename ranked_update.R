@@ -1,13 +1,9 @@
 # Install Packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(readtext, RPostgres, jsonlite, curl, data.table, dplyr)
-
-# Set file location as wd
-current_dir <- dirname(parent.frame(2)$ofile)
-setwd(current_dir)
+pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr)
 
 # import variables from .env
-dotenv_df <- read.table(file=paste0(getwd(),"/.env"),header=FALSE,
+dotenv_df <- read.table(file=paste0(".env"),header=FALSE,
                           sep='=',col.names=c('Key','Value'),
                         stringsAsFactors = FALSE)
 dotenv_dt <- data.table(dotenv_df, key="Key")
@@ -31,7 +27,7 @@ pg_con <- dbConnect(Postgres(),
                  host = pg_ip,
                  dbname = pg_db,
                  bigint = "numeric")
-
+print("connected")
 # function to update database given summoner_name and api_key
 update_summoner_data <- function(summoner_name, api_key){
     
