@@ -27,7 +27,7 @@ pg_con <- dbConnect(Postgres(),
                  host = pg_ip,
                  dbname = pg_db,
                  bigint = "numeric")
-print("connected")
+
 # function to update database given summoner_name and api_key
 update_summoner_data <- function(summoner_name, api_key){
     
