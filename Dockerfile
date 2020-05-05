@@ -1,5 +1,3 @@
-Docker Build
-
 ## get latest ver of R
 FROM rocker/r-base:latest
 
