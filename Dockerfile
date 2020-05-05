@@ -2,8 +2,8 @@
 FROM rocker/r-base:latest
 
 ## Copy files
-COPY ranked_update.R /tilt_bot/\
-	 .env /tilt_bot/
+COPY "C:/Users/joemc/Desktop/Local Repos/tilt_bot/ranked_update.R" /tilt_bot/\
+	 "C:/Users/joemc/Desktop/Local Repos/tilt_bot/.env" /tilt_bot/
 
 ## Install R packages
 RUN install2.r --error \
