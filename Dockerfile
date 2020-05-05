@@ -2,8 +2,8 @@
 FROM rocker/r-base:latest
 
 ## Copy files
-COPY /ranked_update.R \
-	 /.env
+COPY ranked_update.R /tilt_bot/\
+	 .env /tilt_bot/
 
 ## Install R packages
 RUN install2.r --error \
@@ -14,4 +14,4 @@ RUN install2.r --error \
     dplyr 
 
 ## Execute R Script
-CMD Rscript ranked_update.R
+CMD Rscript /tilt_bot/ranked_update.tilt_bot
