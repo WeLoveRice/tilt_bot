@@ -30,18 +30,15 @@ async def on_ready():
     
     # set channel as main text channel
     channel = client.get_channel(185442367703220224)
-    
-    # test_channel details
-    #channel = client.get_channel(706608226442936482)
-    
+
     # use function to get loss_num
     loss_num = get_loss_counter()
 
     # message saying how many games glenn has lost today
     if loss_num == 1:
-        msg_str = f'_ _ \n```Phoenix MT has lost {loss_num} game today.```'
+        msg_str = f'_ _ \n```Glen has lost {loss_num} game today.```'
     else:
-        msg_str = f'_ _ \n```Phoenix MT has lost {loss_num} games today.```'
+        msg_str = f'_ _ \n```Glen has lost {loss_num} games today.```'
     await channel.send(msg_str)
     
     # close client and exit script
@@ -58,7 +55,7 @@ def get_loss_counter():
     cur = pg_con.cursor()
 
     # query string to select glenn's row from daily_update
-    query_string = f"SELECT * FROM daily_update WHERE summoner_name = 'Phoenix MT'"
+    query_string = f"SELECT * FROM daily_table WHERE summoner_name = 'Phoenix MT'"
 
     # execute query, create summoner_data from response
     cur.execute(query_string)
