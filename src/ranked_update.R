@@ -3,9 +3,13 @@ if (!require("pacman")) install.packages("pacman")
 pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr)
 
 # import variables from .env
-dotenv_df <- read.table(file=paste0(".env"),header=FALSE,
-                          sep='=',col.names=c('Key','Value'),
-                        stringsAsFactors = FALSE)
+dotenv_df <- read.table(file=paste0(".env"),
+                        header=FALSE,
+                        sep='=',
+                        col.names=c('Key','Value'),
+                        stringsAsFactors = FALSE,
+                        encoding="UTF-8")
+
 dotenv_dt <- data.table(dotenv_df, key="Key")
 
 print('credentials read from .env file')
@@ -55,36 +59,28 @@ update_summoner_data <- function(summoner_name, api_key){
         api_key)
     
     # import api repsonse as dataframe summoner_data
-    summoner_data <- fromJSON(url_address, simplifyVector = TRUE, simplifyDataFrame = TRUE)
+    ranked_data <- fromJSON(url_address, simplifyVector = TRUE, simplifyDataFrame = TRUE)
     
-    # filter data for Ranked Solo/Duo only
-    summoner_data <- filter(summoner_data, queueType == "RANKED_SOLO_5x5")
+    # url address for api call to get summoner_data using summoner_id
+    url_address <- paste0(
+        "https://euw1.api.riotgames.com/tft/league/v1/entries/by-summoner/",
+        summoner_id,
+        "?api_key=",
+        api_key)
     
+    # import api repsonse as dataframe summoner_data
+    tft_data <- fromJSON(url_address, simplifyVector = TRUE, simplifyDataFrame = TRUE)
+    
+    summoner_data <- rbind(ranked_data, tft_data)
+
     # add date / time columns - had issues using POSIXct on postgres, update in future
-    summoner_data$date <- format(Sys.Date(), format = "%Y%m%d")
-    summoner_data$time <- format(Sys.time(), format = "%H%M")
-    
-    # Create output_data dataframe from summoner_data
-    output_data <- data.frame(
-        summoner_data$summonerName, 
-        summoner_data$tier,
-        summoner_data$rank,
-        summoner_data$leaguePoints,
-        summoner_data$wins,
-        summoner_data$losses,
-        summoner_data$date,
-        summoner_data$time,
-        stringsAsFactors=FALSE)
-	
-    # remove summoner_data
-    rm(summoner_data)
+    summoner_data$timestamp <- as.POSIXct(Sys.time())
 
-    # set colnames for output_data
-    colnames(output_data) <- c("summoner_name", "tier", "rank", "LP", "wins", "losses", "date", "time")
-    
     # append entry to ranked_data table on postgres
-    dbWriteTable(pg_con, "ranked_data", output_data, append = TRUE)
-
+    dbWriteTable(pg_con, "raw_data", summoner_data, append = TRUE)
+    
+    # clean up
+    rm(ranked_data, tft_data, summoner_data)
 }# end of update_summoner_data() function
 
 # loop through each summoner on list updating database with info
@@ -93,99 +89,6 @@ for (summoner in summoners_list){
 }
 
 print('data pulled from Riot API and pushed to postgres db')
-
-# SQL Query to get data for today
-query_string <- '
-    SELECT 
-        "summoner_name", 
-        "tier",
-        "rank",
-        "LP", 
-        "wins",
-        "losses",   
-        "time"
-    FROM 
-        ranked_data 
-    WHERE 
-        "date" = (
-            Select
-                MAX("date") 
-            FROM 
-                ranked_data)
-    ;'
-
-# import SQL query as aggregate data, data shown for every summoner for today
-aggregate_data <- dbGetQuery(pg_con, query_string)
-
-print('data for today pulled from postgres db')
-
-# loop through each unique summoner_name in aggregate_data
-for (summoner in unique(aggregate_data$summoner_name)){
-    
-    # filter data for current summoner_name
-    summoner_data <- filter(aggregate_data, summoner_name == summoner)
-    
-    # create dataframe for daily_update table
-    update_data <- data.frame(
-        summoner_name = summoner,
-        wins = filter(summoner_data, time == max(time))$wins - filter(summoner_data, time == min(time))$wins,
-        losses = filter(summoner_data, time == max(time))$losses - filter(summoner_data, time == min(time))$losses,
-        LP_change = filter(summoner_data, time == max(time))$LP - filter(summoner_data, time == min(time))$LP,
-        tier = unique(summoner_data$tier),
-        rank = unique(summoner_data$rank),
-        current_LP = filter(summoner_data, time == max(time))$LP
-    )
-    
-    # if daily_update variable exists, use rbind to combine with update_data
-    if (exists("daily_update")){
-        daily_update <- rbind(daily_update, update_data)
-    # else create daily_update from update_data
-    } else{
-        daily_update <- update_data
-    }
-    rm(update_data,summoner_data)
-}# end of for loop 
-
-print('daily table created')
-
-# remove aggregate_data
-rm(aggregate_data)
-
-# tilt glen?
-
-# SQL Query to get current loss_counter
-query_string <-'
-    SELECT 
-        * 
-    FROM 
-        daily_loss_counter;'
-
-# return single value dataframe
-counter <- dbGetQuery(pg_con, query_string)
-
-print('retrieve loss counter from postgres db')
-
-# glen daily losses
-losses_today <- filter(daily_update, summoner_name == 'Phoenix MT')$losses
-
-# if losses from daily_update greater than counter from postgres
-# run tilt_glen python script to message discord 
-# if (losses_today > counter$losses){
-#     shell.exec("C:\\Users\\joemc\\Desktop\\Local Repos\\tilt_bot\\tilt_glen.bat")
-# }
-
-# update loss counter on postgres
-loss_counter = as.data.frame(filter(daily_update, summoner_name == 'Phoenix MT')$losses)
-colnames(loss_counter) = "losses"
-dbWriteTable(pg_con, "daily_loss_counter", loss_counter, overwrite = TRUE)
-
-print('updated loss counter on postgres db')
-
-# update daily table on postgres
-dbWriteTable(pg_con, "daily_update", daily_update, overwrite = TRUE)
-print('updated daily table on postgres')
-
-readline(prompt="Press [enter] to continue")
 
 # disconnect postgres connection
 dbDisconnect(pg_con)
