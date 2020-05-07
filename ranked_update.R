@@ -8,6 +8,8 @@ dotenv_df <- read.table(file=paste0(".env"),header=FALSE,
                         stringsAsFactors = FALSE)
 dotenv_dt <- data.table(dotenv_df, key="Key")
 
+print('credentials read from .env file')
+
 # set postgres details from .env variables
 pg_user <- dotenv_dt['pg_user']$Value
 pg_pw <- dotenv_dt['pg_pw']$Value
@@ -27,6 +29,8 @@ pg_con <- dbConnect(Postgres(),
                  host = pg_ip,
                  dbname = pg_db,
                  bigint = "numeric")
+
+print('postgres connection created')
 
 # function to update database given summoner_name and api_key
 update_summoner_data <- function(summoner_name, api_key){
@@ -88,6 +92,8 @@ for (summoner in summoners_list){
     update_summoner_data(summoner, riot_api_key)
 }
 
+print('data pulled from Riot API and pushed to postgres db')
+
 # SQL Query to get data for today
 query_string <- '
     SELECT 
@@ -110,6 +116,8 @@ query_string <- '
 
 # import SQL query as aggregate data, data shown for every summoner for today
 aggregate_data <- dbGetQuery(pg_con, query_string)
+
+print('data for today pulled from postgres db')
 
 # loop through each unique summoner_name in aggregate_data
 for (summoner in unique(aggregate_data$summoner_name)){
@@ -138,6 +146,8 @@ for (summoner in unique(aggregate_data$summoner_name)){
     rm(update_data,summoner_data)
 }# end of for loop 
 
+print('daily table created')
+
 # remove aggregate_data
 rm(aggregate_data)
 
@@ -153,25 +163,31 @@ query_string <-'
 # return single value dataframe
 counter <- dbGetQuery(pg_con, query_string)
 
+print('retrieve loss counter from postgres db')
+
 # glen daily losses
 losses_today <- filter(daily_update, summoner_name == 'Phoenix MT')$losses
 
 # if losses from daily_update greater than counter from postgres
 # run tilt_glen python script to message discord 
-if (losses_today > counter$losses){
-    shell.exec("C:\\Users\\joemc\\Desktop\\Local Repos\\tilt_bot\\tilt_glen.bat")
-}
+# if (losses_today > counter$losses){
+#     shell.exec("C:\\Users\\joemc\\Desktop\\Local Repos\\tilt_bot\\tilt_glen.bat")
+# }
 
 # update loss counter on postgres
 loss_counter = as.data.frame(filter(daily_update, summoner_name == 'Phoenix MT')$losses)
 colnames(loss_counter) = "losses"
 dbWriteTable(pg_con, "daily_loss_counter", loss_counter, overwrite = TRUE)
 
+print('updated loss counter on postgres db')
+
 # update daily table on postgres
 dbWriteTable(pg_con, "daily_update", daily_update, overwrite = TRUE)
+print('updated daily table on postgres')
+
+readline(prompt="Press [enter] to continue")
 
 # disconnect postgres connection
 dbDisconnect(pg_con)
 
-# quit rscript
-quit()
+print('completed update')

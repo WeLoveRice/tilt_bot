@@ -1,16 +1,19 @@
 ## get latest ver of R
-FROM rocker/r-base:latest
+FROM rocker/r-ver:3.6.3
 
 ## Copy files
-COPY C:/Users/joemc/Desktop/Local Repos/tilt_bot/* /tilt_bot/
+COPY install_packages.R ./ \
+	 ranked_update.R ./ \
+	 .env ./
+
+## Install dependencies for RPostgres / curl
+RUN apt-get update && apt-get install -y \
+	libpq-dev \
+	zlib1g-dev \
+	libcurl4-openssl-dev
 
 ## Install R packages
-RUN install2.r --error \
-    RPostgres \
-    jsonlite \
-    curl \
-    data.table \
-    dplyr 
+RUN Rscript install_packages.R
 
 ## Execute R Script
-CMD Rscript /tilt_bot/ranked_update.tilt_bot
+CMD Rscript ranked_update.R
