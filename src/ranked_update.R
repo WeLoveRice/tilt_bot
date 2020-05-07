@@ -94,3 +94,5 @@ print('data pulled from Riot API and pushed to postgres db')
 dbDisconnect(pg_con)
 
 print('completed update')
+
+source("pipeline_data.R")
