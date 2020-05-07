@@ -86,10 +86,8 @@ for (summoner in unique(aggregate_data$summonerName)){
 
 print('daily table created')
 
-stop()
-
 # remove aggregate_data
-rm(aggregate_data)
+rm(aggregate_data, queue_data, summoner_data, update_data, query_string, summoner, queue)
 
 # tilt glen?
 
@@ -102,27 +100,25 @@ query_string <-'
 
 # return single value dataframe
 counter <- dbGetQuery(pg_con, query_string)
+counter <- Reduce("+", counter[,1])
 
 print('retrieve loss counter from postgres db')
 
 # glen daily losses
-losses_today <- filter(daily_update, summoner_name == 'Phoenix MT')$losses
+losses_today <- Reduce("+", filter(daily_table, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai' )$losses)
 
-# if losses from daily_update greater than counter from postgres
+# if losses from daily_table greater than counter from postgres
 # run tilt_glen python script to message discord 
-# if (losses_today > counter$losses){
-#     shell.exec("C:\\Users\\joemc\\Desktop\\Local Repos\\tilt_bot\\tilt_glen.bat")
-# }
+if (losses_today > counter){
+    shell.exec("tilt_glen.bat")
+}
 
 # update loss counter on postgres
-loss_counter = as.data.frame(filter(daily_update, summoner_name == 'Phoenix MT')$losses)
-colnames(loss_counter) = "losses"
+loss_counter = as.data.frame(filter(daily_table, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai')$losses)
 dbWriteTable(pg_con, "daily_loss_counter", loss_counter, overwrite = TRUE)
 
 print('updated loss counter on postgres db')
 
 # update daily table on postgres
-dbWriteTable(pg_con, "daily_update", daily_update, overwrite = TRUE)
+dbWriteTable(pg_con, "daily_table", daily_table, overwrite = TRUE)
 print('updated daily table on postgres')
-
-readline(prompt="Press [enter] to continue")
