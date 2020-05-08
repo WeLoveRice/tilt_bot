@@ -14,6 +14,15 @@ dotenv_dt <- data.table(dotenv_df, key="Key")
 
 print('credentials read from .env file')
 
+lp_table <- data.frame(
+    row.names = c("I","II","III","IV"),
+    "BRONZE" = seq(300,0,-100),
+    "SILVER" = seq(700,400,-100),
+    "GOLD" = seq(1100,800,-100),
+    "PLATINUM" = seq(1500,1200,-100),
+    "DIAMOND" = seq(1900,1600,-100)
+)
+
 # set postgres details from .env variables
 pg_user <- dotenv_dt['pg_user']$Value
 pg_pw <- dotenv_dt['pg_pw']$Value
@@ -63,16 +72,22 @@ for (summoner in unique(aggregate_data$summonerName)){
         
         queue_data <- filter(summoner_data, queueType == queue)
         
+        max_queue_data <- filter(queue_data, timestamp == max(timestamp))
+        min_queue_data <- filter(queue_data, timestamp == min(timestamp))
+
         # create dataframe for daily_update table
         update_data <- data.frame(
             summoner_name = summoner,
             queue = queue,
-            wins = filter(queue_data, timestamp == max(timestamp))$wins - filter(queue_data, timestamp == min(timestamp))$wins,
-            losses = filter(queue_data, timestamp == max(timestamp))$losses - filter(queue_data, timestamp == min(timestamp))$losses,
-            LP_change = filter(queue_data, timestamp == max(timestamp))$leaguePoints - filter(queue_data, timestamp == min(timestamp))$leaguePoints,
-            tier = unique(queue_data$tier),
-            rank = unique(queue_data$rank),
-            current_LP = filter(queue_data, timestamp == max(timestamp))$leaguePoints
+            wins = max_queue_data$wins - min_queue_data$wins,
+            losses = max_queue_data$losses - min_queue_data$losses,          
+            LP_change = lp_table[max_queue_data$rank,max_queue_data$tier] + 
+                max_queue_data$leaguePoints -
+                lp_table[min_queue_data$rank,min_queue_data$tier] -
+                min_queue_data$leaguePoints,
+            tier = max_queue_data$tier,
+            rank = max_queue_data$rank,
+            current_LP = max_queue_data$leaguePoints
         )
         
         # if daily_update variable exists, use rbind to combine with update_data
@@ -84,10 +99,16 @@ for (summoner in unique(aggregate_data$summonerName)){
     }# end of for loop
 }# end of for loop 
 
+raw_daily <- daily_table
+
+daily_table <- filter(daily_table, wins + losses > 0)
+
 print('daily table created')
 
+
+
 # remove aggregate_data
-rm(aggregate_data, queue_data, summoner_data, update_data, query_string, summoner, queue)
+rm(aggregate_data, queue_data, max_queue_data, min_queue_data, summoner_data, update_data, query_string, summoner, queue)
 
 # tilt glen?
 
@@ -105,7 +126,7 @@ counter <- Reduce("+", counter[,1])
 print('retrieve loss counter from postgres db')
 
 # glen daily losses
-losses_today <- Reduce("+", filter(daily_table, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai' )$losses)
+losses_today <- Reduce("+", filter(raw_daily, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai' )$losses)
 
 # if losses from daily_table greater than counter from postgres
 # run tilt_glen python script to message discord 
@@ -114,9 +135,8 @@ if (losses_today > counter){
 }
 
 # update loss counter on postgres
-loss_counter = as.data.frame(filter(daily_table, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai')$losses)
+loss_counter = as.data.frame(filter(raw_daily, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai')$losses)
 dbWriteTable(pg_con, "daily_loss_counter", loss_counter, overwrite = TRUE)
-
 print('updated loss counter on postgres db')
 
 # update daily table on postgres
