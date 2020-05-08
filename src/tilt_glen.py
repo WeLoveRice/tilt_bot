@@ -55,17 +55,19 @@ def get_loss_counter():
     cur = pg_con.cursor()
 
     # query string to select glenn's row from daily_update
-    query_string = f"SELECT * FROM daily_table WHERE summoner_name = 'Phoenix MT'"
+    query_string = f"SELECT * FROM daily_loss_counter;"
 
     # execute query, create summoner_data from response
     cur.execute(query_string)
-    summoner_data = cur.fetchall()[0]
+    loss_counter = cur.fetchall()
+
+    loss_counter = sum([pair[0] for pair in loss_counter])
 
     # close postgres connection
     pg_con.close()
 
     # return number of losses
-    return(summoner_data[2])
+    return(loss_counter)
 
 # run client with token
 client.run(TOKEN)
