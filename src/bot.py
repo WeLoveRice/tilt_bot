@@ -37,7 +37,7 @@ def summoner_response(summoner):
     cur = pg_con.cursor()
 
     # SQL Query for summoner data
-    query_string = f'SELECT "summonerName","queueType","tier","rank","leaguePoints","wins","losses" FROM test_raw_data WHERE LOWER("summonerName") = \'{summoner}\' AND "timestamp" = (SELECT MAX("timestamp") FROM test_raw_data WHERE LOWER("summonerName") = \'{summoner}\');'
+    query_string = f'SELECT "summonerName","queueType","tier","rank","leaguePoints","wins","losses" FROM raw_data WHERE LOWER("summonerName") = \'{summoner}\' AND "timestamp" = (SELECT MAX("timestamp") FROM raw_data WHERE LOWER("summonerName") = \'{summoner}\');'
 
     # execute query, create summoner_data from response
     cur.execute(query_string)
