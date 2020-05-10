@@ -79,6 +79,28 @@ update_summoner_data <- function(summoner_name, api_key){
     # append entry to ranked_data table on postgres
     dbWriteTable(pg_con, "raw_data", summoner_data, append = TRUE)
     
+    # test cleanup SQL
+    dbWriteTable(pg_con, "test_raw_data", summoner_data, append = TRUE)
+
+    query_string <- '
+    DELETE
+	FROM
+		test_raw_data a
+		USING 
+			test_raw_data b
+	WHERE
+		a.timestamp < b.timestamp 
+		AND a."queueType" = b."queueType"
+		AND a.tier = b.tier
+		AND a.rank = b.rank
+		AND a."summonerName" = b."summonerName"
+		AND a.wins = b.wins
+		AND a.losses = b.losses
+		AND a.timestamp >= CURRENT_DATE
+		AND b.timestamp >= CURRENT_DATE;'
+
+	dbSendQuery(pg_con, query_string)
+
     # clean up
     rm(ranked_data, tft_data, summoner_data)
 }# end of update_summoner_data() function
@@ -92,7 +114,7 @@ print('data pulled from Riot API and pushed to postgres db')
 
 # disconnect postgres connection
 dbDisconnect(pg_con)
-
+rm(pg_con,summoners_list,summoner,riot_api_key,update_summoner_data)
 print('completed update')
 
 source("pipeline_data.R")

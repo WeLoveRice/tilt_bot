@@ -1,6 +1,6 @@
 # Install Packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr, lubridate)
+pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr, lubridate,formattable,htmltools,webshot)
 
 # import variables from .env
 dotenv_df <- read.table(file=paste0(".env"),
@@ -99,46 +99,60 @@ for (summoner in unique(aggregate_data$summonerName)){
     }# end of for loop
 }# end of for loop 
 
+rm(aggregate_data,summoner_data,queue_data,lp_table,summoner,queue,max_queue_data,min_queue_data,update_data)
+
 raw_daily <- daily_table
 
 daily_table <- filter(daily_table, wins + losses > 0)
 
 print('daily table created')
 
-
-
-# remove aggregate_data
-rm(aggregate_data, queue_data, max_queue_data, min_queue_data, summoner_data, update_data, query_string, summoner, queue)
-
-# tilt glen?
-
-# SQL Query to get current loss_counter
-query_string <-'
-    SELECT 
-        * 
-    FROM 
-        daily_loss_counter;'
-
-# return single value dataframe
-counter <- dbGetQuery(pg_con, query_string)
-counter <- Reduce("+", counter[,1])
-
-print('retrieve loss counter from postgres db')
-
-# glen daily losses
-losses_today <- Reduce("+", filter(raw_daily, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai' )$losses)
-
-# if losses from daily_table greater than counter from postgres
-# run tilt_glen python script to message discord 
-if (losses_today > counter){
-    shell.exec("tilt_glen.bat")
-}
-
-# update loss counter on postgres
-loss_counter = as.data.frame(filter(raw_daily, summoner_name == 'Phoenix MT' | summoner_name == 'Kawaii Hentai')$losses)
-dbWriteTable(pg_con, "daily_loss_counter", loss_counter, overwrite = TRUE)
-print('updated loss counter on postgres db')
-
 # update daily table on postgres
 dbWriteTable(pg_con, "daily_table", daily_table, overwrite = TRUE)
 print('updated daily table on postgres')
+dbDisconnect(pg_con)
+
+output_table = data.frame(
+    'Summoner' = daily_table$summoner_name,
+    'Queue' = gsub("RANKED_", "", daily_table$queue),
+    'Wins' = daily_table$wins,
+    'Losses' = daily_table$losses,
+    'LP' = daily_table$LP_change,
+    'Change' = daily_table$LP_change
+)
+
+output_table <- output_table %>% arrange(desc(LP))
+
+output_table <- formattable(
+    output_table,
+    align = c("l","l","r","r","r","l"),
+    list(
+        LP.Change = formatter("span", 
+                              style = x ~ style(color = ifelse(x > 0, "green", "red"))),
+        'Change' = formatter("span", 
+                             style = x ~ style(color = ifelse(x > 0, "green", "red")),                                    
+                             x ~ icontext(ifelse(x < 0,"arrow-down","arrow-up")))
+    )
+)
+
+export_formattable <- function(f, file, width = "100%", height = NULL, 
+                               background = "white", delay = 0.2)
+{
+    w <- as.htmlwidget(f, width = "50%", height = height)
+    path <- html_print(w, background = background, viewer = NULL)
+    url <- paste0("file:///", gsub("\\\\", "/", normalizePath(path)))
+    webshot(url,
+            file = file,
+            selector = ".formattable_widget",
+            delay = delay)
+}
+
+if(length(output_table$Summoner) == 0){
+    if(file.exists("leaderboard.png")){
+        file.remove("leaderboard.png")
+    }
+} else {
+    export_formattable(output_table, "leaderboard.png") 
+}
+
+rm(pg_con,output_table,daily_table,raw_daily,query_string)

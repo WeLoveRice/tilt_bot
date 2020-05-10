@@ -3,6 +3,7 @@ import os
 import discord
 import sys
 import psycopg2
+import os.path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,18 +27,6 @@ async def on_ready():
         f'{client.user} is connected'
     )
 
-# on message, check for command trigger !Ranked
-# reply with summoner_data for today
-@client.event
-async def on_message(message):
-
-    if message.author == client.user:
-        return
-
-    if message.content[:7] == '!Ranked':
-        summoner = str(message.content).replace('!Ranked ', '')
-        await message.channel.send(summoner_response(summoner))
-
 # get summoner_data from postgres and format message
 def summoner_response(summoner):
 
@@ -48,23 +37,52 @@ def summoner_response(summoner):
     cur = pg_con.cursor()
 
     # SQL Query for summoner data
-    query_string = f"SELECT * FROM daily_update WHERE summoner_name = '{summoner}'"
+    query_string = f'SELECT "summonerName","queueType","tier","rank","leaguePoints","wins","losses" FROM test_raw_data WHERE LOWER("summonerName") = \'{summoner}\' AND "timestamp" = (SELECT MAX("timestamp") FROM test_raw_data WHERE LOWER("summonerName") = \'{summoner}\');'
 
     # execute query, create summoner_data from response
     cur.execute(query_string)
-    summoner_data = cur.fetchall()[0]
+    summoner_data = cur.fetchall()
 
-    # format LP_change as signed integer
-    LP_change = ["", "+"][summoner_data[3] > 0] + str(summoner_data[3])
+    msg_str = f'{summoner_data[0][0]}:'
 
-    # format summoner_data as message for discord
-    msg_str = f'_ _\n {summoner_data[0]} | {summoner_data[4]} {summoner_data[5]} | {summoner_data[6]}LP\n```Wins:   {summoner_data[1]}\nLosses: {summoner_data[2]}\nLP:     {LP_change}```'
+    for queue in summoner_data:
+        msg_str = f'{msg_str}\n{queue[1]} | {queue[2]} {queue[3]} {queue[4]}LP\n```Wins:   {queue[5]}\nLosses: {queue[6]}```'
 
     # close postgres connection
     pg_con.close()
 
     # return message for discord
     return(msg_str)
+
+leaderboard_msg_id = 1
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
+
+    global leaderboard_msg_id
+
+    temp_string = message.content
+
+    if '!leaderboard' in temp_string.lower():
+        if not leaderboard_msg_id == 1:
+            await client.http.delete_message("185442367703220224", leaderboard_msg_id)
+        if os.path.exists('leaderboard.png'):
+            msg = await message.channel.send(file=discord.File('leaderboard.png'))
+        else:
+            msg = await message.channel.send("```No bois sweating LoL today```")
+        leaderboard_msg_id = msg.id
+
+    temp_string = message.content[:7]
+
+    if temp_string.lower() == '!ranked':
+        print('if statement worked')
+        temp_string = message.content
+        temp_string = temp_string.lower()
+        summoner = temp_string.replace('!ranked ', '')
+        await message.channel.send(summoner_response(summoner))
+
+
 
 # run client with token
 client.run(TOKEN)
