@@ -13,3 +13,4 @@ src/ranked_update.bat
 src/__pycache__/tilt_glen.cpython-37.pyc
 src/.idea/vcs.xml
 src/leaderboard.png
+src/tilt_glen.bat

@@ -1,6 +1,6 @@
 # Install Packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr, lubridate,formattable,htmltools,webshot)
+pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr, lubridate,formattable,htmltools,webshot, textutils)
 
 # import variables from .env
 dotenv_df <- read.table(file=paste0(".env"),
@@ -16,6 +16,7 @@ print('credentials read from .env file')
 
 lp_table <- data.frame(
     row.names = c("I","II","III","IV"),
+    "IRON"= seq(-100,-400, -100),
     "BRONZE" = seq(300,0,-100),
     "SILVER" = seq(700,400,-100),
     "GOLD" = seq(1100,800,-100),
@@ -113,7 +114,7 @@ print('updated daily table on postgres')
 dbDisconnect(pg_con)
 
 output_table = data.frame(
-    'Summoner' = daily_table$summoner_name,
+    'Summoner' = HTMLencode(daily_table$summoner_name),
     'Queue' = gsub("RANKED_", "", daily_table$queue),
     'Wins' = daily_table$wins,
     'Losses' = daily_table$losses,
@@ -131,7 +132,7 @@ output_table <- formattable(
                               style = x ~ style(color = ifelse(x > 0, "green", "red"))),
         'Change' = formatter("span", 
                              style = x ~ style(color = ifelse(x > 0, "green", "red")),                                    
-                             x ~ icontext(ifelse(x < 0,"arrow-down","arrow-up")))
+                             x ~ icontext(ifelse(x < 0,"arrow-down",ifelse(x > 0,"arrow-up",""))))
     )
 )
 

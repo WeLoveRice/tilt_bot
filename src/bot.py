@@ -37,16 +37,18 @@ def summoner_response(summoner):
     cur = pg_con.cursor()
 
     # SQL Query for summoner data
-    query_string = f'SELECT "summonerName","queueType","tier","rank","leaguePoints","wins","losses" FROM raw_data WHERE LOWER("summonerName") = \'{summoner}\' AND "timestamp" = (SELECT MAX("timestamp") FROM raw_data WHERE LOWER("summonerName") = \'{summoner}\');'
+    query_string = f'SELECT "summonerName","queueType","tier","rank","leaguePoints","wins","losses" FROM raw_data WHERE REPLACE(LOWER("summonerName"),\' \', \'\') = \'{summoner}\' AND "timestamp" = (SELECT MAX("timestamp") FROM raw_data WHERE REPLACE(LOWER("summonerName"),\' \', \'\') = \'{summoner}\');'
 
     # execute query, create summoner_data from response
     cur.execute(query_string)
     summoner_data = cur.fetchall()
 
-    msg_str = f'{summoner_data[0][0]}:'
-
-    for queue in summoner_data:
-        msg_str = f'{msg_str}\n{queue[1]} | {queue[2]} {queue[3]} {queue[4]}LP\n```Wins:   {queue[5]}\nLosses: {queue[6]}```'
+    if not summoner_data:
+        msg_str = f"No data held for {summoner}"
+    else:
+        msg_str = f'{summoner_data[0][0]}:'
+        for queue in summoner_data:
+            msg_str = f'{msg_str}\n{queue[1]} | {queue[2]} {queue[3]} {queue[4]}LP\n```Wins:   {queue[5]}\nLosses: {queue[6]}```'
 
     # close postgres connection
     pg_con.close()
@@ -80,6 +82,7 @@ async def on_message(message):
         temp_string = message.content
         temp_string = temp_string.lower()
         summoner = temp_string.replace('!ranked ', '')
+        summoner = summoner.replace(' ','')
         await message.channel.send(summoner_response(summoner))
 
 
