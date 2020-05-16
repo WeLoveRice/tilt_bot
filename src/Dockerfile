@@ -3,7 +3,8 @@ FROM rocker/r-ver:3.6.3
 
 ## Copy files
 COPY install_packages.R ./ \
-	 ranked_update.R ./ \
+	 tilt_bot.R ./ \
+	 tilt_bot_functions.R ./ \
 	 .env ./
 
 ## Install dependencies for RPostgres / curl
@@ -20,5 +21,4 @@ RUN Rscript install_packages.R \
 	dotenv
 
 ## Execute R Script
-CMD Rscript ranked_update.R \
-	&& Rscript pipeline_data.R
+CMD Rscript tilt_bot.R 

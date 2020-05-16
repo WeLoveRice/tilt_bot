@@ -26,6 +26,19 @@ read.env <- function(){
     eu_url <<- dotenv_dt['eu_url']$Value
     na_url <<- dotenv_dt['na_url']$Value
 
+    # create pg_con
+    pg_connection()
+}
+
+pg_connection <- function(){
+    # create connection to postgres
+    pg_con <<- dbConnect(
+        Postgres(),
+        user = pg_user,
+        password = pg_pw,
+        host = pg_ip,
+        dbname = pg_db,
+        bigint = "numeric")
 }
 
 # API Call, adds current summoner info to aggregated dataframe
@@ -39,6 +52,8 @@ riot_api_call <- function(summoner_name, api_key, region_url){
         "?api_key=",
         api_key)
 
+    Sys.sleep(5)  
+
     # import api response as dataframe, creating summoner_id
     summoner_name_data <- fromJSON(url_address)
     summoner_id <- summoner_name_data$id
@@ -51,10 +66,12 @@ riot_api_call <- function(summoner_name, api_key, region_url){
         summoner_id,
         "?api_key=",
         api_key)
-    
+
+    Sys.sleep(5)   
+
     # import api repsonse as dataframe summoner_data
     ranked_data <- fromJSON(url_address, simplifyVector = TRUE, simplifyDataFrame = TRUE)
-    
+
     # url address for api call to get summoner_data using summoner_id
     url_address <- paste0(
         region_url,
@@ -62,17 +79,37 @@ riot_api_call <- function(summoner_name, api_key, region_url){
         summoner_id,
         "?api_key=",
         api_key)
+
+    Sys.sleep(5)     
     
     # import api repsonse as dataframe summoner_data
     tft_data <- fromJSON(url_address, simplifyVector = TRUE, simplifyDataFrame = TRUE)
     
     if(length(ranked_data)+length(tft_data) > 0){
+
+        if(length(ranked_data)==14){
+            ranked_data <- flatten(ranked_data)
+        }
+
+        if(length(ranked_data)==13){
+            ranked_data$miniSeries.target <- NA
+            ranked_data$miniSeries.wins <- NA
+            ranked_data$miniSeries.losses <- NA
+            ranked_data$miniSeries.progress <- NA
+        }
+
+        if(length(tft_data)==13){
+            tft_data$miniSeries.target <- NA
+            tft_data$miniSeries.wins <- NA
+            tft_data$miniSeries.losses <- NA
+            tft_data$miniSeries.progress <- NA
+        }
         
         summoner_data <- rbind(ranked_data, tft_data)
     
         # add date / time columns - had issues using POSIXct on postgres, update in future
         summoner_data$timestamp <- as.POSIXct(Sys.time())
-    
+
         # if current_data variable exists, use rbind to combine with summoner_data
         if (exists("current_data")){
             current_data <<- rbind(current_data, summoner_data)
@@ -80,8 +117,6 @@ riot_api_call <- function(summoner_name, api_key, region_url){
         } else{ current_data <<- summoner_data }
 
     }
-    
-    Sys.sleep(10)
     
     # clean up
     suppressWarnings(rm(ranked_data, tft_data, summoner_data))
@@ -115,6 +150,18 @@ pg_append_raw <- function(dataframe){
 }
 
 create_daily_table <- function(){
+
+    if(exists("daily_table")){rm(daily_table, envir=globalenv())}
+
+    lp_table <- data.frame(
+        row.names = c("I","II","III","IV"),
+        "IRON"= seq(-100,-400, -100),
+        "BRONZE" = seq(300,0,-100),
+        "SILVER" = seq(700,400,-100),
+        "GOLD" = seq(1100,800,-100),
+        "PLATINUM" = seq(1500,1200,-100),
+        "DIAMOND" = seq(1900,1600,-100)
+    )
 
     # SQL Query to get data for today
     query_string <- '
@@ -174,26 +221,43 @@ create_daily_table <- function(){
         }# end of for loop
     }# end of for loop 
 
-    daily_table <- filter(daily_table, wins + losses > 0)
-
-    return(daily_table)
+    daily_table <<- filter(daily_table, wins + losses > 0)
 }
 
-pg_overwrite_daily <- function(dataframe){
+tilt_glen <- function(){
+
+    loss_count <- sum(filter(daily_table, summoner_name=='Phoenix MT' | summoner_name=='Kawaii Hentai')$losses)
+    loss_count_df <- as.data.frame(loss_count)   
+    colnames(loss_count_df) <- "glen_daily_losses"
+
+    query_string <- 'SELECT * FROM daily_loss_counter;'
+
+    old_loss_count <- dbGetQuery(pg_con, query_string)[1,1]
+
+    if(loss_count > old_loss_count){
+
+        system("python tilt_glen.py")
+
+    }
+
+    dbWriteTable(pg_con, "daily_loss_counter", loss_count_df, overwrite = TRUE)
+}
+
+pg_overwrite_daily <- function(){
 
     # update daily table
-    dbWriteTable(pg_con, "daily_table", dataframe, overwrite = TRUE)
+    dbWriteTable(pg_con, "daily_table", daily_table, overwrite = TRUE)
 
 }
 
-create_leaderboard.png <- function(dataframe){
+create_leaderboard.png <- function(){
     output_table = data.frame(
-    'Summoner' = HTMLencode(dataframe$summoner_name),
-    'Queue' = gsub("RANKED_", "", dataframe$queue),
-    'Wins' = dataframe$wins,
-    'Losses' = dataframe$losses,
-    'LP' = dataframe$LP_change,
-    'Change' = dataframe$LP_change
+    'Summoner' = HTMLencode(daily_table$summoner_name),
+    'Queue' = gsub("RANKED_", "", daily_table$queue),
+    'Wins' = daily_table$wins,
+    'Losses' = daily_table$losses,
+    'LP' = daily_table$LP_change,
+    'Change' = daily_table$LP_change
     )
 
     output_table <- output_table %>% arrange(desc(LP))
@@ -235,11 +299,14 @@ update_data <- function(){
     pg_append_raw(current_data)
 
     # create daily_table
-    daily_table <- create_daily_table()
+    create_daily_table()
+
+    # tilt glen
+    tilt_glen()
 
     # overwrite daily_table on db with new info
-    pg_overwrite_daily(daily_table)
+    pg_overwrite_daily()
 
     # create leaderboard.png
-    create_leaderboard.png(daily_table)
+    create_leaderboard.png()
 }

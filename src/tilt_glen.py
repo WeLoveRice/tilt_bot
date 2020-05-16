@@ -72,6 +72,5 @@ def get_loss_counter():
 # run client with token
 client.run(TOKEN)
 
-# close client and exit script
-client.close()
+#
 sys.exit()

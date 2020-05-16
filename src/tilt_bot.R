@@ -1,10 +1,10 @@
 # tilt_bot, manage API calls, update DB, create leaderboard image.
 
-# Install Packages
+# install Packages
 if (!require("pacman")) install.packages("pacman")
-pacman::p_load(RPostgres, jsonlite, curl, data.table, dplyr, lubridate,formattable,htmltools,webshot, textutils)
+pacman::p_load(tictoc,RPostgres, jsonlite, curl, data.table, dplyr, lubridate,formattable,htmltools,webshot, textutils)
 
-# Source functions script
+# source functions script
 source("tilt_bot_functions.R")
 
 # read variables from .env
@@ -12,8 +12,12 @@ read.env()
 
 counter = 0
 
+print("starting loop, update postgres if there are changes to the data")
+
 # infinite loop, waits added throughout to comply with API rate limit
-while (1 == 1){
+while (1==1){
+
+	if(counter>0){print("restarting loop")}
 
 	# read variables from .env in case new user added
 	read.env()
@@ -33,19 +37,27 @@ while (1 == 1){
     # if current_data variable exists, use rbind to combine with summoner_data
     if (exists("existing_data")){
 
-        if(!all.equal(existing_data,current_data)){
+        if(!isTRUE(all.equal(existing_data[,-18],current_data[,-18]))){
 
             update_data()
-        }
 
-        cat("\f")
-        print(paste0(counter, " updates sent to postgres today."))
-        existing_data <- current_data
-        
+        }        
+    }else{
+
+    	update_data()
     }
-    
+   	
+    if (counter%%5==0){
+    	cat("\014")
+    }
+
+
+	counter = counter + 1
+    print(paste0(counter, " updates from API."))
+
+    existing_data <- current_data
     rm(current_data)
     
-    Sys.sleep(20)
+    Sys.sleep(75)
 
 }
