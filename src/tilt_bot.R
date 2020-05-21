@@ -58,6 +58,6 @@ while (1==1){
     existing_data <- current_data
     rm(current_data)
     
-    Sys.sleep(75)
+    Sys.sleep(90)
 
 }
